@@ -10,7 +10,7 @@ Deploy the script in an appropriate folder and copy your live configs as follows
 
 ```bash
 root@server:/opt/jitsi-custom-configs-source# ls
-README.md  conflinker.sh  jitsi  nginx  prosody
+conflinker.sh  jitsi  nginx  prosody
 ````
 Every folder represents the absolute config path e.g.
 ```bash
