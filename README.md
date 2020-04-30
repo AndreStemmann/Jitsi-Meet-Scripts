@@ -38,7 +38,7 @@ root@server:/opt/jitsi-custom-configs-source# find . -type f
 ```
 ## Usage
 ```bash
-./conflinker
+./conflinker.sh
 ```
 ## Explanation
 After running the script you'll find a backup of the original files in your configured backup path.
