@@ -57,7 +57,7 @@ crontab -l
 # Jitsi Backup Job. runtime ~ 45 Sec.
 5 4 * * * /root/backup_jobs/jitsi_backup.sh
 # Jitsi copy to Coldstorage. Runtime ~15 Sec.
-10 4 * * * /root/backup_jobs/nt4_jitsi_backup_push.sh
+10 4 * * * /root/backup_jobs/jitsi_backup_push.sh
 ```
 ## Usage
 ```bash
