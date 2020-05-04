@@ -1,4 +1,4 @@
-#!/bin/bash -
+#!/bin/bash -l
 #===============================================================================
 #
 #          FILE: jitsi_backup.sh
@@ -9,7 +9,9 @@
 #
 #       OPTIONS: APP= SERVICEx= APPFOLDER= BACKDST=
 #        AUTHOR: Andre Stemmann
+#  ORGANIZATION: AirITSystems GmbH
 #       CREATED: 30.04.2020 10:41
+#      REVISION: v0.2
 #===============================================================================
 
 set -o nounset                              # Treat unset variables as an error
@@ -18,6 +20,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 # ===============================================================================
 # BASE VARIABLES
 # ===============================================================================
+
 # script vars
 TODAY=$(date +%Y%m%d)
 start=$(date +%s)
@@ -44,12 +47,13 @@ BACKUPROOT="${BACKDST}/${APP}_backup_${TODAY}"
 # ===============================================================================
 # BASE FUNCTIONS
 # ===============================================================================
+
 function log () {
-	echo "$PROGGI ; $(date '+%Y%m%d %H:%M:%S') ; $@" | tee -a "${LOGFILE}"
+	echo "$PROGGI ; $(date '+%Y%m%d %H:%M:%S') ; $*" | tee -a "${LOGFILE}"
 }
 
 function errorlog () {
-	echo "${PROGGI}_ERRORLOG ; $(date '+%Y%m%d %H:%M:%S') ; $@" | tee -a "${ERRORLOG}"
+	echo "${PROGGI}_ERRORLOG ; $(date '+%Y%m%d %H:%M:%S') ; $*" | tee -a "${ERRORLOG}"
 }
 
 function usercheck () {
@@ -88,27 +92,24 @@ function distrocheck () {
 }
 
 function service_off () {
-	systemctl is-active --quiet $1
-	if [ $? -eq 0 ]; then
+	if systemctl is-active --quiet "$1"; then
 		log "...Graceful stopping $1"
-		systemctl stop $1
-		sleep 10
+		systemctl stop "$1"
+		sleep 3
 	else
 		log "...service $1 already stopped"
-		systemctl is-active --quiet $1
-		if [ $? -ne 0 ]; then
+		if ! systemctl is-active --quiet "$1"; then
 			log "...service $1 stopped"
 		else
 			log "...service $1 still running, trying to SIGTERM it now"
 			kill -15 $APP
-			sleep 10
-			systemctl is-active --quiet $1
-			if [ $? -ne 0 ]; then
+			sleep 3
+			if ! systemctl is-active --quiet "$1"; then
 				log "...service $1 stopped"
 			else
 				log "...service $1 still running, trying to SIGKILL it now"
-				kill -9 $1
-				sleep 10
+				kill -9 "$1"
+				sleep 3
 			fi
 		fi
 	fi
@@ -123,18 +124,16 @@ function backup_flatfiles () {
 
 function service_on () {
 	log "...restarting service $1"
-	systemctl start $1
-	sleep 10
-	systemctl is-active --quiet $1
-	if [ $? -eq 0 ]; then
+	systemctl start "$1"
+	sleep 3
+	if systemctl is-active --quiet "$1"; then
 		log "...$1 is safe and sound"
 	else
 		errorlog "...Failed to start $1"
 		errorlog "...Trying it again"
-		systemctl start $1
-		sleep 10
-		systemctl is-active --quiet $1
-		if [ $? -eq 0 ]; then
+		systemctl start "$1"
+		sleep 3
+		if systemctl is-active --quiet "$1"; then
 			log "...$1 is safe and sound"
 		else
 			errorlog "...Failed to start $1"
@@ -145,11 +144,10 @@ function service_on () {
 
 function zipper () {
 	log "...Will pack all found sourcefiles as tar.gz archive"
-	cd "$BACKDST"
+	cd "$BACKDST" || errorlog "...failed to cd into $BACKDST"
 	log "Found Backup Files to zip:"
 	log "$(find . -type d -name "*_backup_${TODAY}*")"
-	find . -type d -name "*_backup_${TODAY}*" | xargs tar -cvzf "${BACKUPNAME}".tar.gz
-	if [ $? -ne 0 ]; then
+	if ! find . -type d -name "*_backup_${TODAY}*" | xargs tar -cvzf "${BACKUPNAME}".tar.gz; then
 		errorlog "...Failed to create tar.gz-archive from sourcefiles"
 		exit 1
 	fi
@@ -161,11 +159,11 @@ function tidyup () {
 	find "${LOGPATH}/" -type f -mtime +7 | xargs rm -f
 }
 
+# ===============================================================================
 # MAIN RUN
 # ===============================================================================
-# BASIC SETUP
-# ===============================================================================
-cd "$BASEDIR"
+
+cd "$BASEDIR" || errorlog "...failed to cd into $BASEDIR"
 echo "Backup CONFIG"
 echo "#########################"
 echo "logfile location   :  $LOGPATH"
@@ -173,9 +171,7 @@ echo "backup destination :  $BACKDST"
 echo "hostname           :  $HOST"
 echo "date               :  $TODAY"
 sleep 5
-# folder structure
 folder "${LOGPATH}"
-# script run
 usercheck
 distrocheck
 if [ -f "${BACKUPNAME}".tar.gz ]; then
