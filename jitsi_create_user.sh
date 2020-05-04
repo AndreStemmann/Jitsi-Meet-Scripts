@@ -11,7 +11,7 @@
 #        AUTHOR: Andre Stemmann
 #  ORGANIZATION: AirITSystems GmbH
 #       CREATED: 30.04.2020 10:41
-#      REVISION:  ---
+#      REVISION:  v0.2
 #===============================================================================
 
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
@@ -20,8 +20,10 @@ set -o nounset                              # Treat unset variables as an error
 # ===============================================================================
 # BASE VARIABLES
 # ===============================================================================
+
 start=$(date +%s)
 TODAY=$(date +%Y%m%d%H)
+PROGGI=$(basename "$0")
 APP="Prosody"
 LOGPATH="/var/log"
 LOGFILE="${LOGPATH}/syslog"
@@ -29,16 +31,17 @@ ERRORLOG="${LOGPATH}/syslog"
 APPFOLDER="/var/lib/prosody"
 BACKDST="/var/backups/"
 BACKUPROOT="${BACKDST}/${APP}_backup_${TODAY}"
+
 # ===============================================================================
 # BASE FUNCTIONS
 # ===============================================================================
 
 function log () {
-	echo "$PROGGI ; $(date '+%Y%m%d %H:%M:%S') ; $@" | tee -a "${LOGFILE}"
+	echo "$PROGGI ; $(date '+%Y%m%d %H:%M:%S') ; $*" | tee -a "${LOGFILE}"
 }
 
 function errorlog () {
-	echo "${PROGGI}_ERRORLOG ; $(date '+%Y%m%d %H:%M:%S') ; $@" | tee -a "${ERRORLOG}"
+	echo "${PROGGI}_ERRORLOG ; $(date '+%Y%m%d %H:%M:%S') ; $*" | tee -a "${ERRORLOG}"
 }
 
 function usercheck () {
@@ -48,16 +51,23 @@ function usercheck () {
 	fi
 }
 
+function folder () {
+        if [ ! -d "$1" ]; then
+                mkdir -p "$1"
+                log "...Create Backupfolder structure for $APP $1"
+        else
+                log "...Folder $1 already exists"
+        fi
+}
+
 function distrocheck () {
 	if [[ -r /etc/os-release ]]; then
 		. /etc/os-release
 		if [[ $ID = ubuntu ]]; then
 			log  "...Running ${ID}_${VERSION_ID} "
-			BACKUPNAME="${HOST}"_"${ID}"_"${VERSION_ID}"_"${APP}"_"${TODAY}"
 			folder "${BACKUPROOT}"
 		else
 			errorlog "...Not running an debian based distribution. ID=$ID, VERSION=$VERSION"
-			BACKUPNAME="${HOST}"_"${ID}"_"${VERSION_ID}"_"${APP}"_"${TODAY}"
 			folder "${BACKUPROOT}"
 		fi
 	else
@@ -147,22 +157,19 @@ function parseparams () {
 }
 
 function service_restart () {
-	systemctl is-active --quiet "$1"
-	if [ $? -eq 0 ]; then
+	if systemctl is-active --quiet "$1"; then
 		log "...stopping $1"
 		systemctl stop "$1"
 		sleep 3
 	else
 		log "...service $1 already stopped"
-		systemctl is-active --quiet "$1"
-		if [ $? -ne 0 ]; then
+		if ! systemctl is-active --quiet "$1"; then
 			log "...service $1 stopped"
 		else
 			log "...service $1 still running, trying to SIGTERM it now"
 			kill -15 "$1"
 			sleep 3
-			systemctl is-active --quiet "$1"
-			if [ $? -ne 0 ]; then
+			if ! systemctl is-active --quiet "$1"; then
 				log "...service $1 stopped"
 			else
 				log "...service $1 still running, trying to SIGKILL it now"
@@ -174,16 +181,14 @@ function service_restart () {
 
 	systemctl start "$1"
 	sleep 3
-	systemctl is-active --quiet "$1"
-	if [ $? -eq 0 ]; then
+	if systemctl is-active --quiet "$1"; then
 		log "...$1 is safe and sound"
 	else
 		errorlog "...Failed to start $1"
 		errorlog "...Trying it again"
 		systemctl start "$1"
 		sleep 3
-		systemctl is-active --quiet "$1"
-		if [ $? -eq 0 ]; then
+		if systemctl is-active --quiet "$1"; then
 			log "...$1 is safe and sound"
 		else
 			errorlog "...Failed to start $1"
@@ -196,14 +201,14 @@ function restartq () {
 	echo "In order to register the new user correctly, the services"
 	echo "jicofo, jitsi-videobridge and prosody must be restartet"
 	while true; do
-		read -p "Do you wish to restart all related services now? [y/n]" yn
+		read -rp "Do you wish to restart all related services now? [y/n]" yn
 		case $yn in
 			[Yy]* )
-				service_restart jicofo
-				service_restart jitsi-videobridge2
-				service_restart prosody
-				;;
-			[Nn]* ) exit 0;;
+				service_restart jicofo;
+				service_restart jitsi-videobridge2;
+				service_restart prosody;
+				break;;
+			[Nn]* ) break;;
 			* ) echo "Please answer yes or no.";;
 		esac
 	done
@@ -211,9 +216,7 @@ function restartq () {
 
 function createuser () {
 	# create prosody user
-	prosodyctl register ${USER} ${DOMAIN} ${PW}
-
-	if [ $? -ne 0 ]; then
+	if ! prosodyctl register "${P_USER}" "${P_DOMAIN}" "${P_PW}"; then
 		errorlog "please re-check user account creation manually, something went wrong"
 		exit 1
 	fi
@@ -228,16 +231,14 @@ function backup () {
 # ===============================================================================
 usercheck
 distrocheck
-parseparams
+parseparams "$@"
 case "$P_BAK" in
-	[yY]*) 
+	[yY]*)
 		backup
-		zipper
-		;;	       
+		;;
 esac
 createuser
 restartq
-backup
 end=$(date +%s)
 runtime=$((end-start))
 log "...Runtime $runtime Seconds"
