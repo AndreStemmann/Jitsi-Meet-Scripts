@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -l
 #===============================================================================
 #
 #          FILE: jitsi_backup_push.sh
@@ -7,11 +7,11 @@
 #
 #   DESCRIPTION: simple backups transfer script
 #
-#       OPTIONS: DSTIP= APP= BACKUPUSER= BACKUPFOLDER= 
+#       OPTIONS: DSTIP= APP= BACKUPUSER= BACKUPFOLDER=
 #        AUTHOR: Andre Stemmann
 #  ORGANIZATION: AirITSystems GmbH
 #       CREATED: 30.04.2020 10:41
-#      REVISION:  ---
+#      REVISION:  v0.2
 #===============================================================================
 
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
@@ -32,6 +32,7 @@ LOGPATH="${BASEDIR}/jitsi_backup_push_logs"
 LOGFILE="${LOGPATH}/${PROGGI}-${TODAY}.log"
 ERRORLOG="${LOGPATH}/${PROGGI}-${TODAY}_ERROR.log"
 . /etc/os-release
+
 # user vars
 DSTIP="192.168.x.x"
 APP="jitsi-meet"
@@ -39,6 +40,7 @@ BACKUPUSER="myfancybackupuser_to_access_the_remote_host"
 BACKUPFOLDER="/var/backups"
 BACKUPNAME="${HOST}_${ID}_${VERSION_ID}_${APP}_${TODAY}"
 BACKDST="${DSTIP}:${BACKUPFOLDER}/${BACKUPUSER}"
+
 # ===============================================================================
 # BASE FUNCTIONS
 # ===============================================================================
@@ -58,13 +60,13 @@ function usercheck () {
 	fi
 }
 
-function folder () {                                                                 
-	if [ ! -d "$1" ]; then                                                             
-		mkdir -p "$1"                                                                    
-		log "...Create Logfile structure for $PROGGI $1"                               
-	else                                                                               
-		log "...Folder $1 already exists"                                                
-	fi                                                                                 
+function folder () {
+	if [ ! -d "$1" ]; then
+		mkdir -p "$1"
+		log "...Create Logfile structure for $PROGGI $1"
+	else
+		log "...Folder $1 already exists"
+	fi
 }
 
 function sync () {
@@ -80,12 +82,12 @@ function tidyup () {
 	find "${LOGPATH}/" -type f -mtime +7 | xargs rm -f
 }
 
+
+# ===============================================================================
 # MAIN RUN
 # ===============================================================================
-# BASIC SETUP
-# ===============================================================================
 
-cd "$BASEDIR"
+cd "$BASEDIR" || errorlog "...failed to cd into $BASEDIR"
 echo "Backup CONFIG"
 echo "#########################"
 echo "logfile location   :  $LOGPATH"
@@ -98,7 +100,6 @@ sleep 5
 folder "${LOGPATH}"
 # script run
 usercheck
-sleep 3
 sync
 tidyup
 end=$(date +%s)
